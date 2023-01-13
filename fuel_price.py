@@ -15,7 +15,7 @@ class FuelPrice:
     STATION_ID = "2f0d5ed0-7935-4d5e-b623-aa20ce2ba334"
     API_KEY = "36d397b8-02e3-a4f8-597e-ff8d58fe59a4"
     KAFKA_SERVER = "localhost:9092"
-    KAFKA_TOPIC = "fuel_price"
+    KAFKA_TOPIC = "fuel_price_2"
 
     @dataclass
     class Price:
@@ -40,7 +40,7 @@ class FuelPrice:
     
     def write_to_kafka(self, prices: Price):
         producer = KafkaProducer(bootstrap_servers=self.KAFKA_SERVER)
-        future: FutureRecordMetadata = producer.send(self.KAFKA_TOPIC, str(prices.__dict__).encode('utf-8'))
+        future: FutureRecordMetadata = producer.send(self.KAFKA_TOPIC, (json.dumps(prices.__dict__).encode('utf-8')))
         future.get(timeout=10)
 
     def subscribe_to_kafka(self):
@@ -48,13 +48,13 @@ class FuelPrice:
         
         for message in consumer:
             prices_dict = message.value.decode("utf-8")
-            print(json.loads(message.value))
+            print(json.loads(message.value.decode("utf-8")))
             # prices = self.Prices(time.time(), prices_dict["e5"], prices_dict["e10"], prices_dict["diesel"])
 
 if __name__ == "__main__":
     fuel_prices = FuelPrice()
 
-    # fuel_prices.subscribe_to_kafka()
+    fuel_prices.subscribe_to_kafka()
 
     while True:
         prices = fuel_prices.load_from_external_api()

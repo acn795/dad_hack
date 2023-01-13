@@ -56,16 +56,30 @@ def get_data_5_min():
     # print("cnt ",cnt)
     data_dict = [sensor.__dict__ for sensor in sensors]
     # print(data_dict)
-    producer = KafkaProducer(bootstrap_servers='localhost:9092')
-    topic = 'bikes_5_min'
+    # producer = KafkaProducer(bootstrap_servers='localhost:9092')
+    KAFKA_SERVER = "localhost:9092"
+    producer = KafkaProducer(bootstrap_servers=KAFKA_SERVER, value_serializer=lambda m: json.dumps(m).encode('utf-8'))
+
+    topic = 'bike_data_5_min'
+
+    print("publish data")
     
     for bike_data in data_dict:
         # send every hour data as single message to kafka
         json_data = json.dumps(bike_data)
-        print(json_data)
-        future = producer.send(topic, bike_data)
+        future = producer.send(topic, json_data)
+        future.get(timeout=10)
+
+    time.sleep(2)
+    future = producer.send("bike_done", json_data)
+    future.get(timeout=10)
+
+
+    print("data published")
 
 if __name__ == "__main__":
     while(True):
+        starttime = time.time()
         get_data_5_min()
-        time.sleep(60 * 5)
+        delta = time.time() - starttime
+        time.sleep(60 * 0.5 - delta)
