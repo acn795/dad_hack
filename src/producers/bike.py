@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from kafka import KafkaProducer
 import datetime
 
+import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config
+
 @dataclass
 class BikeSensor5Min:
     id: int
@@ -57,17 +61,14 @@ def get_data_5_min():
     data_dict = [sensor.__dict__ for sensor in sensors]
     # print(data_dict)
     # producer = KafkaProducer(bootstrap_servers='localhost:9092')
-    KAFKA_SERVER = "localhost:9092"
-    producer = KafkaProducer(bootstrap_servers=KAFKA_SERVER, value_serializer=lambda m: json.dumps(m).encode('utf-8'))
-
-    topic = 'bike_data_5_min'
+    producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER, value_serializer=lambda m: json.dumps(m).encode('utf-8'))
 
     print("publish data")
     
     for bike_data in data_dict:
         # send every hour data as single message to kafka
         json_data = json.dumps(bike_data)
-        future = producer.send(topic, json_data)
+        future = producer.send(config.BIKE_TOPIC, json_data)
         future.get(timeout=10)
 
     time.sleep(2)

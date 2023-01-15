@@ -12,83 +12,87 @@ from kafka.producer.future import FutureRecordMetadata
 from datetime import timedelta
 import matplotlib.pyplot as plt
 
-@dataclass
-class Price:
-    date: float
-    e5: float
-    e10: float
-    diesel: float
-
-@dataclass
-class BikeSensor5Min:
-    id: int
-    name: str
-    count: int
-    time: str
-    coordinateType: str
-    coordinates: list
+import config
+from producers.bike import BikeSensor5Min
+from producers.fuel_price import FuelPrice
 
 @dataclass
 class MergedData:
     bike_data: BikeSensor5Min
-    price_data: Price
-    # fuel_data: 
+    fuel_price_data: FuelPrice
+    # weather_data
 
 @dataclass
-class sum:
-    price_data: Price
-    # fuel_data: 
+class Sum:
     bikes: int
+    fuel_price: FuelPrice
+    # weather_data
 
 weather_data = []
-weather_topic = ""
 bike_data = []
-bike_topic = "bike_data_5_min"
 fuel_data = []
-fuel_topic = "fuel_price_2"
 
 merged_data_topic = "merged_data"
 accumulated_data_topic = "accumulated_data"
 
-KAFKA_SERVER = "localhost:9092"
+
 
 
 if __name__ == "__main__":
-    bike_consumer = KafkaConsumer(bike_topic, bootstrap_servers=KAFKA_SERVER, value_deserializer=lambda m: json.loads(m.decode('utf-8')))
-    bike_done = KafkaConsumer("bike_done", bootstrap_servers=KAFKA_SERVER, value_deserializer=lambda m: json.loads(m.decode('utf-8')))
+    bike_consumer = KafkaConsumer(config.BIKE_TOPIC, bootstrap_servers=config.KAFKA_SERVER, value_deserializer=lambda m: json.loads(m.decode('utf-8')))
+    bike_done = KafkaConsumer("bike_done", bootstrap_servers=config.KAFKA_SERVER, value_deserializer=lambda m: json.loads(m.decode('utf-8')))
+
     # weather_consumer = KafkaConsumer(weather_topic, bootstrap_servers=KAFKA_SERVER, value_deserializer=lambda m: json.loads(m.decode('utf-8')))
-    fuel_consumer = KafkaConsumer(fuel_topic, bootstrap_servers=KAFKA_SERVER, value_deserializer=lambda m: json.loads(m.decode('utf-8')))
+    
+    fuel_consumer = KafkaConsumer(config.FUEL_TOPIC, bootstrap_servers=config.KAFKA_SERVER, value_deserializer=lambda m: json.loads(m.decode('utf-8')))
+
     counted_bikes = 0
     history = []
     timestamp = 0
     timestamps = []
 
-    producer = KafkaProducer(bootstrap_servers=KAFKA_SERVER, value_serializer=lambda m: json.dumps(m).encode('utf-8'))
+    producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER, value_serializer=lambda m: json.dumps(m).encode('utf-8'))
 
 
     while True:
         # publish merged data to kafka for grafana
         # for message in weather_consumer:  # update weather data object
         #     weather_data = json.loads(message.value.decode("utf-8"))
+        fuel_price_data: FuelPrice
+        bike_data: BikeSensor5Min
+
         messages = fuel_consumer.poll(timeout_ms=10)
         for msg in messages:  # update fuel data object
             for value in messages[msg]:
-                fuel_data = json.loads(value.value)  
+                fuel_price_data = FuelPrice(
+                    value.value["date"],
+                    value.value["e5"],
+                    value.value["e10"],
+                    value.value["diesel"],
+                )
 
         messages = bike_consumer.poll(timeout_ms=200)
         for msg in messages:  # merge data with bike sensors
             for value in messages[msg]:
-                data = json.loads(value.value)
-                counted_bikes += data["count"]
-                merge = MergedData(data, fuel_data)
-                timestamp = data["time"]
+                parsed = json.loads(value.value)
+                bike_data = BikeSensor5Min(
+                    parsed["id"],
+                    parsed["name"],
+                    parsed["count"],
+                    parsed["time"],
+                    parsed["coordinateType"],
+                    parsed["coordinates"],
+                )
+                counted_bikes += bike_data.count
+                merge = MergedData(bike_data, fuel_price_data)
+                timestamp = bike_data.time
 
                 # json_data = json.dumps(merge)
                 # future = producer.send(merged_data_topic, json_data)
                 # future.get(timeout=10)
 
                 # publish merged data to kafka
-                summed_data = sum(fuel_data, counted_bikes)
+                summed_data = Sum(counted_bikes, fuel_price_data)
 
                 # json_data = json.dumps(summed_data)
                 # future = producer.send(accumulated_data_topic, json_data)
