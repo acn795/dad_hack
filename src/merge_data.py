@@ -35,10 +35,15 @@ if __name__ == "__main__":
     producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER, value_serializer=lambda m: json.dumps(m).encode('utf-8'))
 
     # Consumer
-    bike_consumer = KafkaConsumer(config.BIKE_TOPIC, bootstrap_servers=config.KAFKA_SERVER, value_deserializer=lambda m: json.loads(m.decode('utf-8')))
-    bike_done_consumer = KafkaConsumer(config.BIKE_DONE_TOPIC, bootstrap_servers=config.KAFKA_SERVER, value_deserializer=lambda m: json.loads(m.decode('utf-8')))
-    weather_consumer = KafkaConsumer(config.WEATHER_TOPIC, bootstrap_servers=config.KAFKA_SERVER, value_deserializer=lambda m: json.loads(m.decode('utf-8')))
-    fuel_consumer = KafkaConsumer(config.FUEL_TOPIC, bootstrap_servers=config.KAFKA_SERVER, value_deserializer=lambda m: json.loads(m.decode('utf-8')))
+    consumer = KafkaConsumer(
+        bootstrap_servers=config.KAFKA_SERVER,
+        value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+    )
+    consumer.subscribe([
+        config.BIKE_TOPIC,
+        config.WEATHER_TOPIC,
+        config.FUEL_TOPIC
+    ])
 
     # Lists
     counted_bikes = 0
@@ -46,60 +51,60 @@ if __name__ == "__main__":
     timestamp = 0
     timestamps = []
 
-    fuel_price_data: FuelPrice
-    bike_data: BikeSensor5Min
-    weather_data: Weather
+    fuel_price_data = None
+    bike_data = None
+    weather_data = None
 
     while True:
         # publish merged data to kafka for grafana
 
-        messages = weather_consumer.poll(timeout_ms=10)
-        for msg in messages:  # update fuel data object
-            for value in messages[msg]:
-                # print(value.value)
-                weather_data = Weather(
-                    value.value["temp"],
-                    value.value["dwpt"],
-                    value.value["rhum"],
-                    value.value["prcp"],
-                    value.value["snow"],
-                    value.value["wdir"],
-                    value.value["wspd"],
-                    value.value["wpgt"],
-                    value.value["pres"],
-                    value.value["tsun"],
-                    value.value["coco"],
-                )
+        raw_messages = consumer.poll(timeout_ms=10000)
+        for topic_partition, messages in raw_messages.items():
+            topic = topic_partition.topic
+            if topic == config.WEATHER_TOPIC:
+                for value in messages:
+                    weather_data = Weather(
+                        value.value["temp"],
+                        value.value["dwpt"],
+                        value.value["rhum"],
+                        value.value["prcp"],
+                        value.value["snow"],
+                        value.value["wdir"],
+                        value.value["wspd"],
+                        value.value["wpgt"],
+                        value.value["pres"],
+                        value.value["tsun"],
+                        value.value["coco"],
+                    )
+            elif topic == config.FUEL_TOPIC:
+                for value in messages:
+                    fuel_price_data = FuelPrice(
+                        value.value["date"],
+                        value.value["e5"],
+                        value.value["e10"],
+                        value.value["diesel"],
+                    )
+            elif topic == config.BIKE_TOPIC:
+                for value in messages:
+                    bike_data = BikeSensor5Min(
+                        value.value["id"],
+                        value.value["name"],
+                        value.value["count"],
+                        value.value["time"],
+                        value.value["coordinateType"],
+                        value.value["coordinates"],
+                    )
 
-        messages = fuel_consumer.poll(timeout_ms=10)
-        for msg in messages:  # update fuel data object
-            for value in messages[msg]:
-                fuel_price_data = FuelPrice(
-                    value.value["temp"],
-                    value.value["e5"],
-                    value.value["e10"],
-                    value.value["diesel"],
-                )
+                    counted_bikes += bike_data.count
 
-        messages = bike_consumer.poll(timeout_ms=200)
-        for msg in messages: # merge data with bike sensors
-            for value in messages[msg]:
-                bike_data = BikeSensor5Min(
-                    value.value["id"],
-                    value.value["name"],
-                    value.value["count"],
-                    value.value["time"],
-                    value.value["coordinateType"],
-                    value.value["coordinates"],
-                )
-                counted_bikes += bike_data.count
-
-                # Publish merged data
-                merge = MergedData(bike_data, fuel_price_data, weather_data)
-                future = producer.send(config.MERGED_DATA_TOPIC, merge)
-                future.get(timeout=10)
+                    # Publish merged data
+                    if counted_bikes != None and fuel_price_data != None and weather_data != None:
+                        merge = MergedData(bike_data, fuel_price_data, weather_data)
+                        future = producer.send(config.MERGED_DATA_TOPIC, merge)
+                        future.get(timeout=10)
 
         # Publish accumulated data to kafka
-        accumulated_data = AccumulatedData(counted_bikes, fuel_price_data, weather_data)
-        future = producer.send(config.ACCUMULATED_DATA_TOPIC, accumulated_data.__dict__)
-        future.get(timeout=10)
+        if counted_bikes != None and fuel_price_data != None and weather_data != None:
+            accumulated_data = AccumulatedData(counted_bikes, fuel_price_data, weather_data)
+            future = producer.send(config.ACCUMULATED_DATA_TOPIC, accumulated_data.__dict__)
+            future.get(timeout=10)

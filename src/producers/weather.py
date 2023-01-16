@@ -37,7 +37,7 @@ def load_batch_hourly(start_time):
     # Get last value, because only publish per hour
     last = data.loc[data.last_valid_index()]
     
-    weatherData = Weather(
+    weather_data = Weather(
         last["temp"],
         last["dwpt"],
         last["rhum"],
@@ -51,10 +51,10 @@ def load_batch_hourly(start_time):
         last["coco"],
     )
 
-    # print(weatherData)
+    print(weather_data)
 
     producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER, value_serializer=lambda m: json.dumps(m).encode('utf-8'))
-    future: FutureRecordMetadata = producer.send(config.WEATHER_TOPIC, weatherData.__dict__)
+    future: FutureRecordMetadata = producer.send(config.WEATHER_TOPIC, weather_data.__dict__)
     future.get(timeout=10)
 
 if __name__ == "__main__":
