@@ -6,6 +6,7 @@ import numpy as np
 import requests
 
 from dataclasses import dataclass
+from dataclasses_json import dataclass_json
 from datetime import datetime
 from kafka import KafkaProducer, KafkaConsumer
 from kafka.producer.future import FutureRecordMetadata
@@ -17,12 +18,14 @@ from producers.bike import BikeSensor5Min
 from producers.fuel_price import FuelPrice
 from producers.weather import Weather
 
+@dataclass_json
 @dataclass
 class MergedData:
     bike_data: BikeSensor5Min
     fuel_price_data: FuelPrice
     weather_data: Weather
 
+@dataclass_json
 @dataclass
 class AccumulatedData:
     bikes: int
@@ -32,7 +35,7 @@ class AccumulatedData:
 
 if __name__ == "__main__":
     # Producer
-    producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER, value_serializer=lambda m: json.dumps(m).encode('utf-8'))
+    producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER, value_serializer=lambda m: m.encode('utf-8'))
 
     # Consumer
     consumer = KafkaConsumer(
@@ -100,11 +103,12 @@ if __name__ == "__main__":
                     # Publish merged data
                     if counted_bikes != None and fuel_price_data != None and weather_data != None:
                         merge = MergedData(bike_data, fuel_price_data, weather_data)
-                        future = producer.send(config.MERGED_DATA_TOPIC, merge)
+                        future = producer.send(config.MERGED_DATA_TOPIC, merge.to_json())
                         future.get(timeout=10)
 
         # Publish accumulated data to kafka
         if counted_bikes != None and fuel_price_data != None and weather_data != None:
             accumulated_data = AccumulatedData(counted_bikes, fuel_price_data, weather_data)
-            future = producer.send(config.ACCUMULATED_DATA_TOPIC, accumulated_data.__dict__)
+            print(accumulated_data.to_json())
+            future = producer.send(config.ACCUMULATED_DATA_TOPIC, accumulated_data.to_json())
             future.get(timeout=10)

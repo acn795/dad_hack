@@ -5,6 +5,7 @@ import time
 import requests
 
 from dataclasses import dataclass
+from dataclasses_json import dataclass_json
 from kafka import KafkaProducer
 from kafka.producer.future import FutureRecordMetadata
 
@@ -12,6 +13,7 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
+@dataclass_json
 @dataclass
 class FuelPrice:
     date: float
@@ -35,8 +37,8 @@ class FuelPriceProducer:
     def write_to_kafka(self, prices: FuelPrice):
         print(prices)
 
-        producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER)
-        future: FutureRecordMetadata = producer.send(config.FUEL_TOPIC, (json.dumps(prices.__dict__).encode('utf-8')))
+        producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER, value_serializer=lambda m: m.encode('utf-8'))
+        future: FutureRecordMetadata = producer.send(config.FUEL_TOPIC, prices.to_json())
         future.get(timeout=10)
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3.10
 
+from dataclasses_json import dataclass_json
 from dataclasses import dataclass
 from datetime import datetime
 from meteostat import Point, Hourly
@@ -12,6 +13,7 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
+@dataclass_json
 @dataclass
 class Weather:
     temp: float
@@ -53,8 +55,8 @@ def load_batch_hourly(start_time):
 
     print(weather_data)
 
-    producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER, value_serializer=lambda m: json.dumps(m).encode('utf-8'))
-    future: FutureRecordMetadata = producer.send(config.WEATHER_TOPIC, weather_data.__dict__)
+    producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER, value_serializer=lambda m: m.encode('utf-8'))
+    future: FutureRecordMetadata = producer.send(config.WEATHER_TOPIC, weather_data.to_json())
     future.get(timeout=10)
 
 if __name__ == "__main__":

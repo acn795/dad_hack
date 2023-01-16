@@ -1,6 +1,7 @@
 import requests
 import json
 import time
+from dataclasses_json import dataclass_json
 from dataclasses import dataclass
 from kafka import KafkaProducer
 import datetime
@@ -9,6 +10,7 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
+@dataclass_json
 @dataclass
 class BikeSensor5Min:
     id: int
@@ -58,20 +60,20 @@ def get_data_5_min():
             response = json.loads(resp.content)
 
     # print("cnt ",cnt)
-    data_dict = [sensor.__dict__ for sensor in sensors]
+    # data_dict = [sensor.__dict__ for sensor in sensors]
     # print(data_dict)
     # producer = KafkaProducer(bootstrap_servers='localhost:9092')
-    producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER, value_serializer=lambda m: json.dumps(m).encode('utf-8'))
+    producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER, value_serializer=lambda m: m.encode('utf-8'))
 
     print("publish data")
     
-    for bike_data in data_dict:
+    for bike_data in sensors:
         # send every hour data as single message to kafka
-        future = producer.send(config.BIKE_TOPIC, bike_data)
+        future = producer.send(config.BIKE_TOPIC, bike_data.to_json())
         future.get(timeout=10)
 
     time.sleep(2)
-    future = producer.send(config.BIKE_DONE_TOPIC) # test if payload is needed
+    future = producer.send(config.BIKE_DONE_TOPIC, bike_data.to_json()) # test if payload is needed
     future.get(timeout=10)
 
 
@@ -82,4 +84,4 @@ if __name__ == "__main__":
         starttime = time.time()
         get_data_5_min()
         delta = time.time() - starttime
-        time.sleep(60 * 0.5 - delta)
+        time.sleep(60 * 5 - delta)
