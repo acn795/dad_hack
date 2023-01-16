@@ -71,7 +71,7 @@ def get_data_5_min():
         future.get(timeout=10)
 
     time.sleep(2)
-    future = producer.send("bike_done") # test if payload is needed
+    future = producer.send(config.BIKE_DONE_TOPIC) # test if payload is needed
     future.get(timeout=10)
 
 
