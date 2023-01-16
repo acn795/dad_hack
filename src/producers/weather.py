@@ -1,37 +1,66 @@
 #!/usr/bin/env python3.10
 
-import numpy 
-
+from dataclasses import dataclass
 from datetime import datetime
 from meteostat import Point, Hourly
 from kafka import KafkaProducer
+from kafka.producer.future import FutureRecordMetadata
 import json
+import time
 
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
-def load_batch_hourly(start_time):
-    # Set time period
+@dataclass
+class Weather:
+    temp: float
+    dwpt: float
+    rhum: float
+    prcp: float
+    snow: float
+    wdir: float
+    wspd: float
+    wpgt: float
+    pres: float
+    tsun: float
+    coco: float
 
-    end = datetime.now()
+def load_batch_hourly(start_time):
     # Create Point for Hamburg, Germany
     hamburg = Point(53.5502, 9.9920, 6)
 
-    # Get daily data for 2018
-    data = Hourly(hamburg, start_time, end)
+    # Get daily data from start_time
+    data = Hourly(hamburg, start_time, datetime.now())
     data = data.fetch()
+
+    # Get last value, because only publish per hour
+    last = data.loc[data.last_valid_index()]
     
-    data_dict = data.to_dict(orient='records')
+    weatherData = Weather(
+        last["temp"],
+        last["dwpt"],
+        last["rhum"],
+        last["prcp"],
+        last["snow"],
+        last["wdir"],
+        last["wspd"],
+        last["wpgt"],
+        last["pres"],
+        last["tsun"],
+        last["coco"],
+    )
 
-    producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER)
-    topic = config.WEATHER_TOPIC
-    for hour_data in data_dict:
-        # send every hour data as single message to kafka
-        json_hour_data = json.dumps(hour_data)
-        print(json_hour_data)
-#        future = producer.send(topic, json_hour_data)
+    # print(weatherData)
 
+    producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER, value_serializer=lambda m: json.dumps(m).encode('utf-8'))
+    future: FutureRecordMetadata = producer.send(config.WEATHER_TOPIC, weatherData.__dict__)
+    future.get(timeout=10)
 
 if __name__ == "__main__":
-    load_batch_hourly(datetime(2020, 1, 1))
+    while True:
+        dt = datetime.now()
+
+        load_batch_hourly(datetime(dt.year, dt.month, dt.day))
+
+        time.sleep(60*60)

@@ -67,12 +67,11 @@ def get_data_5_min():
     
     for bike_data in data_dict:
         # send every hour data as single message to kafka
-        json_data = json.dumps(bike_data)
-        future = producer.send(config.BIKE_TOPIC, json_data)
+        future = producer.send(config.BIKE_TOPIC, bike_data)
         future.get(timeout=10)
 
     time.sleep(2)
-    future = producer.send("bike_done", json_data)
+    future = producer.send("bike_done") # test if payload is needed
     future.get(timeout=10)
 
 
