@@ -36,7 +36,7 @@ def get_data_5_min():
             for feature in response['value']:
                 for stream in feature['Datastreams']:
                     date = stream['Observations'][0]['phenomenonTime'].split('T')[0]
-                    if date == datetime.datetime.now().strftime("%Y-%m-%d"):
+                    if date == datetime.datetime.utcnow().strftime("%Y-%m-%d"):
                         cnt += 1
                         if len(stream['Observations']) > 0:
                             # print(stream['description'])
@@ -66,6 +66,8 @@ def get_data_5_min():
     producer = KafkaProducer(bootstrap_servers=config.KAFKA_SERVER, value_serializer=lambda m: m.encode('utf-8'))
 
     print("publish data")
+
+    bike_data = None
     
     for bike_data in sensors:
         # send every hour data as single message to kafka
@@ -73,8 +75,10 @@ def get_data_5_min():
         future.get(timeout=10)
 
     time.sleep(2)
-    future = producer.send(config.BIKE_DONE_TOPIC, bike_data.to_json()) # test if payload is needed
-    future.get(timeout=10)
+
+    if bike_data != None:
+        future = producer.send(config.BIKE_DONE_TOPIC, bike_data.to_json()) # test if payload is needed
+        future.get(timeout=10)
 
 
     print("data published")

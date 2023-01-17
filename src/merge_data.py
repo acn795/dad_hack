@@ -28,6 +28,7 @@ class MergedData:
 @dataclass_json
 @dataclass
 class AccumulatedData:
+    timestamp: str
     bikes: int
     fuel_price: FuelPrice
     weather_data: Weather
@@ -44,15 +45,14 @@ if __name__ == "__main__":
     )
     consumer.subscribe([
         config.BIKE_TOPIC,
+        config.BIKE_DONE_TOPIC,
         config.WEATHER_TOPIC,
         config.FUEL_TOPIC
     ])
 
     # Lists
     counted_bikes = 0
-    history = []
-    timestamp = 0
-    timestamps = []
+    bike_timestamp = ""
 
     fuel_price_data = None
     bike_data = None
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     while True:
         # publish merged data to kafka for grafana
 
-        raw_messages = consumer.poll(timeout_ms=10000)
+        raw_messages = consumer.poll(timeout_ms=1_000 * 60 * 6) # 6 minutes
         for topic_partition, messages in raw_messages.items():
             topic = topic_partition.topic
             if topic == config.WEATHER_TOPIC:
@@ -99,6 +99,7 @@ if __name__ == "__main__":
                     )
 
                     counted_bikes += bike_data.count
+                    bike_timestamp = bike_data.time
 
                     # Publish merged data
                     if counted_bikes != None and fuel_price_data != None and weather_data != None:
@@ -106,9 +107,12 @@ if __name__ == "__main__":
                         future = producer.send(config.MERGED_DATA_TOPIC, merge.to_json())
                         future.get(timeout=10)
 
-        # Publish accumulated data to kafka
-        if counted_bikes != None and fuel_price_data != None and weather_data != None:
-            accumulated_data = AccumulatedData(counted_bikes, fuel_price_data, weather_data)
-            print(accumulated_data.to_json())
-            future = producer.send(config.ACCUMULATED_DATA_TOPIC, accumulated_data.to_json())
-            future.get(timeout=10)
+            elif topic == config.BIKE_DONE_TOPIC:
+                # Publish accumulated data to kafka
+                if counted_bikes != None and fuel_price_data != None and weather_data != None:
+                    accumulated_data = AccumulatedData(bike_timestamp, counted_bikes, fuel_price_data, weather_data)
+                    print(accumulated_data.to_json())
+                    future = producer.send(config.ACCUMULATED_DATA_TOPIC, accumulated_data.to_json())
+                    future.get(timeout=10)
+                
+                counted_bikes = 0
