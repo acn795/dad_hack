@@ -29,32 +29,31 @@ export class AppRoot extends LitElement {
 
       <div class="subheader">Basedata</div>
       <div class="row">
-        ${this.renderCard("Bike-Count", CountedBikes)}
-        ${this.renderCard("Weather", Weather)}
-        ${this.renderCard("Fuel-Price", FuelPrice)}
+        ${this.renderCard(CountedBikes)}
+        ${this.renderCard(Weather)}
+        ${this.renderCard(FuelPrice)}
       </div>
 
       <div class="subheader">"Fuel-Price" - "Bike-Count" correlations</div>
       <div class="row">
-        ${this.renderCard("Diesel", CorrelationBikeVSDiesel)}
-        ${this.renderCard("E5", CorrelationBikeVSe5)}
-        ${this.renderCard("E10", CorrelationBikeVSe10)}
+        ${this.renderCard(CorrelationBikeVSDiesel)}
+        ${this.renderCard(CorrelationBikeVSe5)}
+        ${this.renderCard(CorrelationBikeVSe10)}
       </div>
 
       <div class="subheader">"Weather" - "Bike-Count" correlations</div>
       <div class="row">
-        ${this.renderCard("Rain", CorrelationBikeVSRain)}
-        ${this.renderCard("Wind", CorrelationBikeVSWind)}
-        ${this.renderCard("Temperature", CorrelationBikeVSTemperature)}
+        ${this.renderCard(CorrelationBikeVSRain)}
+        ${this.renderCard(CorrelationBikeVSWind)}
+        ${this.renderCard(CorrelationBikeVSTemperature)}
       </div>
     `;
   }
 
-  renderCard(title: string, url: string) {
+  renderCard(url: string) {
     return html`
       <div class="card">
         <img class="plot" src=${url}>
-        <div class="title">${title}</div>
       </div>
     `;
   }
@@ -87,7 +86,8 @@ export class AppRoot extends LitElement {
       display: flex;
       flex-direction: column;
       flex: 1;
-      height: 20rem;
+      padding: 1rem;
+      padding-top: 0;
       box-shadow: 0 0 0.3rem gray;
       border-radius: 1rem;
       overflow: hidden;
